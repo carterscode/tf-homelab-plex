@@ -1,0 +1,24 @@
+---
+- name: Update Ubuntu hostname
+  hosts: all
+  become: true
+  tasks:
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+      vars:
+        ansible_user: linuxuser
+
+- name: Update hosts file with servers from inventory
+  hosts: all
+  become: true
+  tasks:
+    - name: Update hosts file
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          {% for host in groups['all'] %}
+          {{ hostvars[host]['ansible_default_ipv4']['address'] }} {{ host }}
+          {% endfor %}
+      vars:
+        ansible_user: linuxuser

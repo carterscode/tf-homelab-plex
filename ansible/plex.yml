@@ -1,0 +1,49 @@
+---
+- name: Deploy Plex server
+  hosts: plex_server
+  become: true
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name: ['apt-transport-https', 'ca-certificates', 'curl', 'avahi-daemon', 'avahi-utils', 'gpg-agent', 'cifs-utils']
+        state: present
+
+    - name: Install New Kernel
+      apt:
+        name: ['linux-image-5.19.0-41-generic']
+        state: present
+
+    - name: Add Plex GPG key
+      raw: 'curl https://downloads.plex.tv/plex-keys/PlexSign.key | gpg --dearmor | sudo tee /usr/share/keyrings/plexserver.gpg > /dev/null'
+
+    - name: Add Plex repository
+      lineinfile:
+        dest: /etc/apt/sources.list.d/plexmediaserver.list
+        line: 'deb [arch=amd64 signed-by=/usr/share/keyrings/plexserver.gpg] https://downloads.plex.tv/repo/deb public main'
+        create: yes
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Plex Server
+      apt:
+        name: ['plexmediaserver']
+        state: present
+
+    - name: Mount file share
+      mount:
+        src: //192.168.256.256/movies
+        path: /mnt
+        fstype: cifs
+        opts: "password=,vers=3.0"
+        state: mounted
+      register: mount_output
+
+    - name: Display mount output
+      debug:
+        var: mount_output

@@ -1,0 +1,125 @@
+- name: Upgrade Kernel and Install Intel Graphics Drivers
+  hosts: plex_server
+  become: yes
+  tasks:
+    - name: Install gpg-agent and wget
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - gpg-agent
+        - wget
+
+    - name: Add Intel Graphics key
+      shell: |
+        wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | sudo gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+      args:
+        executable: /bin/bash
+
+    - name: Create intel.gpu.jammy.list file
+      command: touch /etc/apt/sources.list.d/intel.gpu.jammy.list
+      become: yes
+
+    - name: Add Intel Graphics repository
+      lineinfile:
+        path: /etc/apt/sources.list.d/intel.gpu.jammy.list
+        line: 'deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy arc'
+      become: yes
+
+    - name: Update package cache
+      apt:
+        update_cache: yes
+
+    - name: Install specific Linux kernel
+      apt:
+        name: linux-image-5.19.0-41-generic
+        state: present
+        install_recommends: yes
+
+    - name: Configure GRUB_DEFAULT
+      shell: |
+        sed -i "s/GRUB_DEFAULT=.*/GRUB_DEFAULT=\"1> $(echo $(($(awk -F\' '/menuentry / {print $2}' /boot/grub/grub.cfg | grep -no '5.19.0-41' | sed 's/:/\n/g' | head -n 1)-2)))\"/" /etc/default/grub
+      args:
+        executable: /bin/bash
+
+    - name: Update GRUB
+      command: update-grub
+
+    - name: Reboot the system
+      command: reboot
+      async: 1
+      poll: 0
+      ignore_errors: true
+
+    - name: Wait for the system to reboot
+      wait_for_connection:
+        delay: 30
+        timeout: 300
+
+    - name: Update package cache after reboot
+      apt:
+        update_cache: yes
+
+    - name: Install a lot of additional packages
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - gawk
+        - dkms
+        - "linux-headers-{{ ansible_kernel }}"
+        - libc6-dev
+        - intel-platform-vsec-dkms
+        - intel-platform-cse-dkms
+        - intel-i915-dkms
+        - intel-fw-gpu
+        - gawk
+        - libc6-dev
+        - udev
+        - intel-opencl-icd
+        - intel-level-zero-gpu
+        - level-zero
+        - intel-media-va-driver-non-free
+        - libmfx1
+        - libmfxgen1
+        - libvpl2
+        - libegl-mesa0
+        - libegl1-mesa
+        - libegl1-mesa-dev
+        - libgbm1
+        - libgl1-mesa-dev
+        - libgl1-mesa-dri
+        - libglapi-mesa
+        - libgles2-mesa-dev
+        - libglx-mesa0
+        - libigdgmm12
+        - libxatracker2
+        - mesa-va-drivers
+        - mesa-vdpau-drivers
+        - mesa-vulkan-drivers
+        - va-driver-all
+        - vainfo
+        - onevpl-tools
+        - hwinfo
+       
+    - name: Install additional packages (continued)
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - libigc-dev
+        - intel-igc-cm
+        - libigdfcl-dev
+        - libigfxcmrt-dev
+        - level-zero-dev
+
+    - name: Reboot the system (again)
+      command: reboot
+      async: 1
+      poll: 0
+      ignore_errors: true
+
+    - name: Wait for the system to reboot (again)
+      wait_for_connection:
+        delay: 30
+        timeout: 300
